@@ -1,6 +1,6 @@
 package Business::OnlinePayment::LinkPoint;
 
-# $Id: LinkPoint.pm,v 1.6 2002/08/14 01:32:54 ivan Exp $
+# $Id: LinkPoint.pm,v 1.10 2003/08/11 05:05:57 ivan Exp $
 
 use strict;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
@@ -8,21 +8,24 @@ use Carp qw(croak);
 use AutoLoader;
 use Business::OnlinePayment;
 
-use lperl; #lperl.pm from Linkpoint.
-
 require Exporter;
 
 @ISA = qw(Exporter AutoLoader Business::OnlinePayment);
 @EXPORT = qw();
 @EXPORT_OK = qw();
-$VERSION = '0.02';
+$VERSION = '0.03';
+
+use lperl; #2.6;  #lperl.pm from LinkPoint
+$LPERL::VERSION =~ /^(\d+\.\d+)/
+  or die "can't parse lperl.pm version: $LPERL::VERSION";
+die "lperl.pm minimum version 2.6 required\n" unless $1 >= 2.6;
 
 sub set_defaults {
     my $self = shift;
 
     #$self->server('staging.linkpt.net');
     $self->server('secure.linkpt.net');
-    $self->port('1139');
+    $self->port('1129');
 
 }
 
@@ -88,7 +91,6 @@ sub get_fields {
 sub submit {
     my($self) = @_;
 
-
     $self->map_fields();
 
     my %content = $self->content;
@@ -115,7 +117,13 @@ sub submit {
     $content{'address'} =~ /^(\S+)\s/;
     my $addrnum = $1;
 
-    $self->server('staging.linkpt.net') if $self->test_transaction;
+    my $result = $content{'result'};
+    if ( $self->test_transaction) {
+      $result ||= 'GOOD';
+      $self->server('staging.linkpt.net');
+    } else {
+      $result ||= 'LIVE';
+    }
 
     $self->revmap_fields(
       hostname     => \( $self->server ),
@@ -123,18 +131,13 @@ sub submit {
       storename    => \( $self->storename ),
       keyfile      => \( $self->keyfile ),
       addrnum      => \$addrnum,
-
+      result       => \$result,
       cardNumber   => 'card_number',
       cardExpMonth => \$month,
       cardExpYear  => \$year,
     );
 
-    my $lperl = new LPERL
-      $self->lbin,
-      'FILE',
-      $self->can('tmp')
-        ? $self->tmp
-        : '/tmp';
+    my $lperl = new LPERL;
     my $action = $content{action};
 
     $self->required_fields(qw/
@@ -148,7 +151,7 @@ sub submit {
       name email phone address city state zip country
     /);
 
-    #print "$_ => $post_data{$_}\n" foreach keys %post_data;
+    warn "$_ => $post_data{$_}\n" foreach keys %post_data;
 
     my %response;
     {
@@ -156,17 +159,24 @@ sub submit {
       %response = $lperl->$action(\%post_data);
     }
 
-    if ( $response{'statusCode'} == 0 ) {
+    #if ( $response{'statusCode'} == 0 ) {
+    if ( $response{'statusMessage'} ) {
       $self->is_success(0);
       $self->result_code('');
       $self->error_message($response{'statusMessage'});
-    } else {
+    } elsif ( $response{'statusCode'} ) {
       $self->is_success(1);
-      $self->result_code($response{'AVCCode'});
+      $self->result_code($response{'AVSCode'});
       $self->authorization($response{'trackingID'});
 #      $self->order_number($response{'neworderID'});
+    } else {
+      #if ( exists($response{'statusMessage'})
+      #     && defined($response{'statusMessage'}) ) { # "normal" error
+      #} else { # "should not happen" error (should this die/croak?)
+        $self->error_message("No statusMessage returned!  Response follows:".
+          join(' / ', map { "$_=>".$response{$_} } keys %response )           );
+      #}
     }
-
 }
 
 1;
@@ -174,7 +184,7 @@ __END__
 
 =head1 NAME
 
-Business::OnlinePayment::LinkPoint - LinkPoint backend for Business::OnlinePayment
+Business::OnlinePayment::LinkPoint - LinkPoint (Cardservice) backend for Business::OnlinePayment
 
 =head1 SYNOPSIS
 
@@ -183,8 +193,6 @@ Business::OnlinePayment::LinkPoint - LinkPoint backend for Business::OnlinePayme
   my $tx = new Business::OnlinePayment( 'LinkPoint',
     'storename' => 'your_store_number',
     'keyfile'   => '/path/to/keyfile.pem',
-    'lbin'      => '/path/to/binary/lbin',
-    'tmp'       => '/secure/tmp',          # a secure tmp directory
   );
 
   $tx->content(
@@ -223,6 +231,9 @@ For detailed information see L<Business::OnlinePayment>.
 
 This module implements an interface to the LinkPoint Perl Wrapper
 http://www.linkpoint.com/product_solutions/internet/lperl/lperl_main.html
+
+Version 0.3 of this module has been updated for the LinkPoint Perl Wrapper
+version 2.6.
 
 =head1 BUGS
 

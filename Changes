@@ -1,6 +1,10 @@
 Revision history for Perl extension Business::OnlinePayment::LinkPoint.
 
-0.02 unreleased
+0.03 Sun Aug 10 21:57:16 PDT 2003
+	- better error message when LinkPoint doesn't return a statusMessage
+	- update for LinkPoint API 2.6
+
+0.02  Tue Aug 13 2002
 	- quiet "Use of uninitialized value" warnings from lperl.pm
 	- eliminate warnings about redefined subroutines (and do so in a
 	  5.005-friendly way)

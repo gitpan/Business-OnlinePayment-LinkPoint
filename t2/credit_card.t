@@ -1,12 +1,10 @@
-BEGIN { $| = 1; print "1..2\n"; }
+BEGIN { $| = 1; print "1..1\n"; }
 
 use Business::OnlinePayment;
 
 my $tx = new Business::OnlinePayment("LinkPoint",
-  'storename' => '000000',
-  'keyfile'   => '/path/to/cert.pem',
-  'lbin'      => '/path/to/lbin',
-  'tmp'       => '/path/to/secure/tempdir',
+  'storename' => '1909100155',
+  'keyfile'   => './test.pem',
 );
 
 $tx->content(
@@ -23,7 +21,7 @@ $tx->content(
     country        => 'US',
     email          => 'ivan-linkpoint@420.am',
     card_number    => '4007000000027',
-    expiration     => '12/2002',
+    expiration     => '12/2005',
 );
 
 $tx->test_transaction(1);
