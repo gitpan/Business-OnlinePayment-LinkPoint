@@ -1,5 +1,10 @@
 Revision history for Perl extension Business::OnlinePayment::LinkPoint.
 
+0.05	Thu Jan  6 16:11:01 PST 2005
+	- Add patch from William McKee <william@knowmad.com> to support
+	  returns by order number
+	- add debugging flag, now off by default
+
 0.04 Sun Aug  1 18:29:23 PDT 2004
 	- LinkPoint API 3.5: s/lperl/lpperl/i.  oh great.
 

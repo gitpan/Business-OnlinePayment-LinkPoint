@@ -1,9 +1,9 @@
 package Business::OnlinePayment::LinkPoint;
 
-# $Id: LinkPoint.pm,v 1.22 2004/06/24 15:32:33 ivan Exp $
+# $Id: LinkPoint.pm,v 1.23 2005/01/07 02:53:50 ivan Exp $
 
 use strict;
-use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
+use vars qw($VERSION @ISA $DEBUG @EXPORT @EXPORT_OK);
 use Carp qw(croak);
 use AutoLoader;
 use Business::OnlinePayment;
@@ -13,11 +13,12 @@ require Exporter;
 @ISA = qw(Exporter AutoLoader Business::OnlinePayment);
 @EXPORT = qw();
 @EXPORT_OK = qw();
-$VERSION = '0.04';
+$VERSION = '0.05';
+$DEBUG = 0;
 
-use lpperl; #3;  #lperl.pm from LinkPoint
+use lpperl; #3;  #lpperl.pm from LinkPoint
 $LPPERL::VERSION =~ /^(\d+\.\d+)/
-  or die "can't parse lperl.pm version: $LPPERL::VERSION";
+  or die "can't parse lpperl.pm version: $LPPERL::VERSION";
 die "lpperl.pm minimum version 3 required\n" unless $1 >= 3;
 
 sub set_defaults {
@@ -99,7 +100,10 @@ sub submit {
     my %content = $self->content;
 
     my($month, $year);
-    unless ( $content{action} eq 'POSTAUTH' ) {
+    unless ( $content{action} eq 'POSTAUTH'
+             || ( $content{'action'} =~ /^(CREDIT|VOID)$/
+                  && exists $content{'order_number'} )
+           ) {
 
         if (  $self->transaction_type() =~
                 /^(cc|visa|mastercard|american express|discover)$/i
@@ -139,6 +143,7 @@ sub submit {
       cardexpmonth => \$month,
       cardexpyear  => \$year,
       chargetotal  => 'amount',
+      oid          => 'order_number',
     );
 
     my $lperl = new LPPERL;
@@ -152,6 +157,7 @@ sub submit {
       result
       chargetotal cardnumber cardexpmonth cardexpyear
       name email phone addrnum city state zip country
+      oid
     /);
 
     $post_data{'ordertype'} = $content{action};
@@ -161,7 +167,9 @@ sub submit {
       $post_data{cvmvalue} = $content{'cvv2'};
     }
 
-    warn "$_ => $post_data{$_}\n" foreach keys %post_data;
+    if ( $DEBUG ) {
+      warn "$_ => $post_data{$_}\n" foreach keys %post_data;
+    }
 
     my %response;
     #{
@@ -170,7 +178,9 @@ sub submit {
     #}
     %response = $lperl->curl_process(\%post_data);
 
-    warn "$_ => $response{$_}\n" for keys %response;
+    if ( $DEBUG ) {
+      warn "$_ => $response{$_}\n" for keys %response;
+    }
 
     if ( $response{'r_approved'} eq 'APPROVED' ) {
       $self->is_success(1);
@@ -239,8 +249,8 @@ For detailed information see L<Business::OnlinePayment>.
 This module implements an interface to the LinkPoint Perl Wrapper
 http://www.linkpoint.com/product_solutions/internet/lperl/lperl_main.html
 
-Version 0.4 of this module has been updated for the LinkPoint Perl Wrapper
-version 3.5.
+Versions 0.4 and on of this module support the LinkPoint Perl Wrapper version
+3.5.
 
 =head1 BUGS
 
