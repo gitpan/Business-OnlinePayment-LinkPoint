@@ -3,12 +3,11 @@ All rights reserved. This program is free software; you can redistribute it
 and/or modify it under the same terms as Perl itself.
 
 This is Business::OnlinePayment::LinkPoint, an Business::OnlinePayment
-backend module for the LinkPoint.  It is only useful if you have a merchant
-account with LinkPoint: http://www.linkpoint.com/ and the "LinkPoint Perl
-Wrapper":
+backend module for LinkPoint.  It is only useful if you have a merchant account
+with LinkPoint: http://www.linkpoint.com/ and the "LinkPoint Perl Wrapper":
 http://www.linkpoint.com/product_solutions/internet/lperl/lperl_main.html
 
-It is based on Businss::OnlinePayment::AuthorizeNet written by Jason Kohles.
+It is based on Business::OnlinePayment::AuthorizeNet written by Jason Kohles.
 
 There are additional tests in t2/ that may be useful to you once you have a
 store number and key file.

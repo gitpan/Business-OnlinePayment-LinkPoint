@@ -1,5 +1,13 @@
 Revision history for Perl extension Business::OnlinePayment::LinkPoint.
 
+0.02 unreleased
+	- quiet "Use of uninitialized value" warnings from lperl.pm
+	- eliminate warnings about redefined subroutines (and do so in a
+	  5.005-friendly way)
+	- better URLs for linkpoint perl wrapper
+	- don't spew debugging output by default
+	- move load.t test from t1/ to t2/
+
 0.01  Wed Nov 21 04:00:26 2001
 	- original version; created by ivan 1.0
 

@@ -1,6 +1,6 @@
 package Business::OnlinePayment::LinkPoint;
 
-# $Id: LinkPoint.pm,v 1.1.1.1 2002/02/15 01:19:27 ivan Exp $
+# $Id: LinkPoint.pm,v 1.6 2002/08/14 01:32:54 ivan Exp $
 
 use strict;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
@@ -15,7 +15,7 @@ require Exporter;
 @ISA = qw(Exporter AutoLoader Business::OnlinePayment);
 @EXPORT = qw();
 @EXPORT_OK = qw();
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 sub set_defaults {
     my $self = shift;
@@ -41,6 +41,15 @@ sub map_fields {
 
     # stuff it back into %content
     $self->content(%content);
+}
+
+sub build_subs {
+    my $self = shift;
+    foreach(@_) {
+        #no warnings; #not 5.005
+        local($^W)=0;
+        eval "sub $_ { my \$self = shift; if(\@_) { \$self->{$_} = shift; } return \$self->{$_}; }";
+    }
 }
 
 sub remap_fields {
@@ -139,10 +148,13 @@ sub submit {
       name email phone address city state zip country
     /);
 
-    print "$_ => $post_data{$_}\n" foreach keys %post_data;
-    #die;
+    #print "$_ => $post_data{$_}\n" foreach keys %post_data;
 
-    my %response = $lperl->$action(\%post_data);
+    my %response;
+    {
+      local($^W)=0;
+      %response = $lperl->$action(\%post_data);
+    }
 
     if ( $response{'statusCode'} == 0 ) {
       $self->is_success(0);
@@ -210,7 +222,7 @@ For detailed information see L<Business::OnlinePayment>.
 =head1 COMPATIBILITY
 
 This module implements an interface to the LinkPoint Perl Wrapper
-http://www.linkpoint.com/product_solutions/internet/inet_index.html
+http://www.linkpoint.com/product_solutions/internet/lperl/lperl_main.html
 
 =head1 BUGS
 
@@ -222,7 +234,7 @@ Based on Busienss::OnlinePayment::AuthorizeNet written by Jason Kohles.
 
 =head1 SEE ALSO
 
-perl(1). L<Business::OnlinePayment>.
+perl(1), L<Business::OnlinePayment>.
 
 =cut
 
