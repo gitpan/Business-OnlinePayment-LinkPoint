@@ -1,6 +1,6 @@
 package Business::OnlinePayment::LinkPoint;
 
-# $Id: LinkPoint.pm,v 1.10 2003/08/11 05:05:57 ivan Exp $
+# $Id: LinkPoint.pm,v 1.22 2004/06/24 15:32:33 ivan Exp $
 
 use strict;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
@@ -13,12 +13,12 @@ require Exporter;
 @ISA = qw(Exporter AutoLoader Business::OnlinePayment);
 @EXPORT = qw();
 @EXPORT_OK = qw();
-$VERSION = '0.03';
+$VERSION = '0.04';
 
-use lperl; #2.6;  #lperl.pm from LinkPoint
-$LPERL::VERSION =~ /^(\d+\.\d+)/
-  or die "can't parse lperl.pm version: $LPERL::VERSION";
-die "lperl.pm minimum version 2.6 required\n" unless $1 >= 2.6;
+use lpperl; #3;  #lperl.pm from LinkPoint
+$LPPERL::VERSION =~ /^(\d+\.\d+)/
+  or die "can't parse lperl.pm version: $LPPERL::VERSION";
+die "lpperl.pm minimum version 3 required\n" unless $1 >= 3;
 
 sub set_defaults {
     my $self = shift;
@@ -26,6 +26,8 @@ sub set_defaults {
     #$self->server('staging.linkpt.net');
     $self->server('secure.linkpt.net');
     $self->port('1129');
+
+    $self->build_subs(qw(order_number avs_code));
 
 }
 
@@ -35,10 +37,11 @@ sub map_fields {
     my %content = $self->content();
 
     #ACTION MAP
-    my %actions = ('normal authorization' => 'ApproveSale',
-                   'authorization only'   => 'CapturePayment',
-                   'credit'               => 'ReturnOrder',
-                   'post authorization'   => 'BillOrders',
+    my %actions = ('normal authorization' => 'SALE',
+                   'authorization only'   => 'PREAUTH',
+                   'credit'               => 'CREDIT',
+                   'post authorization'   => 'POSTAUTH',
+                   'void'                 => 'VOID',
                   );
     $content{'action'} = $actions{lc($content{'action'})} || $content{'action'};
 
@@ -96,7 +99,7 @@ sub submit {
     my %content = $self->content;
 
     my($month, $year);
-    unless ( $content{action} eq 'BillOrders' ) {
+    unless ( $content{action} eq 'POSTAUTH' ) {
 
         if (  $self->transaction_type() =~
                 /^(cc|visa|mastercard|american express|discover)$/i
@@ -111,7 +114,6 @@ sub submit {
 
       ( $month, $year ) = ( $1, $2 );
       $month = '0'. $month if $month =~ /^\d$/;
-      $year += 2000 if $year < 2000; #not y4k safe, oh shit
     }
 
     $content{'address'} =~ /^(\S+)\s/;
@@ -120,63 +122,68 @@ sub submit {
     my $result = $content{'result'};
     if ( $self->test_transaction) {
       $result ||= 'GOOD';
-      $self->server('staging.linkpt.net');
+      #$self->server('staging.linkpt.net');
     } else {
       $result ||= 'LIVE';
     }
 
     $self->revmap_fields(
-      hostname     => \( $self->server ),
+      host         => \( $self->server ),
       port         => \( $self->port ),
-      storename    => \( $self->storename ),
+      #storename    => \( $self->storename ),
+      configfile   => \( $self->storename ),
       keyfile      => \( $self->keyfile ),
       addrnum      => \$addrnum,
       result       => \$result,
-      cardNumber   => 'card_number',
-      cardExpMonth => \$month,
-      cardExpYear  => \$year,
+      cardnumber   => 'card_number',
+      cardexpmonth => \$month,
+      cardexpyear  => \$year,
+      chargetotal  => 'amount',
     );
 
-    my $lperl = new LPERL;
-    my $action = $content{action};
+    my $lperl = new LPPERL;
 
     $self->required_fields(qw/
-      hostname port storename keyfile amount cardNumber cardExpMonth cardExpYear
+      host port configfile keyfile amount cardnumber cardexpmonth cardexpyear
     /);
 
     my %post_data = $self->get_fields(qw/
-      hostname port storename keyfile
+      host port configfile keyfile
       result
-      amount cardNumber cardExpMonth cardExpYear
-      name email phone address city state zip country
+      chargetotal cardnumber cardexpmonth cardexpyear
+      name email phone addrnum city state zip country
     /);
+
+    $post_data{'ordertype'} = $content{action};
+
+    if ( $content{'cvv2'} ) { 
+      $post_data{cvmindicator} = 'provided';
+      $post_data{cvmvalue} = $content{'cvv2'};
+    }
 
     warn "$_ => $post_data{$_}\n" foreach keys %post_data;
 
     my %response;
-    {
-      local($^W)=0;
-      %response = $lperl->$action(\%post_data);
-    }
+    #{
+    #  local($^W)=0;
+    #  %response = $lperl->$action(\%post_data);
+    #}
+    %response = $lperl->curl_process(\%post_data);
 
-    #if ( $response{'statusCode'} == 0 ) {
-    if ( $response{'statusMessage'} ) {
+    warn "$_ => $response{$_}\n" for keys %response;
+
+    if ( $response{'r_approved'} eq 'APPROVED' ) {
+      $self->is_success(1);
+      $self->result_code($response{'r_code'});
+      $self->authorization($response{'r_ref'});
+      $self->order_number($response{'r_ordernum'});
+      $self->avs_code($response{'r_avs'});
+    } else {
       $self->is_success(0);
       $self->result_code('');
-      $self->error_message($response{'statusMessage'});
-    } elsif ( $response{'statusCode'} ) {
-      $self->is_success(1);
-      $self->result_code($response{'AVSCode'});
-      $self->authorization($response{'trackingID'});
-#      $self->order_number($response{'neworderID'});
-    } else {
-      #if ( exists($response{'statusMessage'})
-      #     && defined($response{'statusMessage'}) ) { # "normal" error
-      #} else { # "should not happen" error (should this die/croak?)
-        $self->error_message("No statusMessage returned!  Response follows:".
-          join(' / ', map { "$_=>".$response{$_} } keys %response )           );
-      #}
+      $self->error_message($response{'r_error'});
     }
+
 }
 
 1;
@@ -232,8 +239,8 @@ For detailed information see L<Business::OnlinePayment>.
 This module implements an interface to the LinkPoint Perl Wrapper
 http://www.linkpoint.com/product_solutions/internet/lperl/lperl_main.html
 
-Version 0.3 of this module has been updated for the LinkPoint Perl Wrapper
-version 2.6.
+Version 0.4 of this module has been updated for the LinkPoint Perl Wrapper
+version 3.5.
 
 =head1 BUGS
 

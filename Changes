@@ -1,5 +1,8 @@
 Revision history for Perl extension Business::OnlinePayment::LinkPoint.
 
+0.04 Sun Aug  1 18:29:23 PDT 2004
+	- LinkPoint API 3.5: s/lperl/lpperl/i.  oh great.
+
 0.03 Sun Aug 10 21:57:16 PDT 2003
 	- better error message when LinkPoint doesn't return a statusMessage
 	- update for LinkPoint API 2.6
