@@ -4,6 +4,8 @@ MANIFEST
 Makefile.PL
 README
 t/bop.t
-t2/load.t
-t2/bad_auth.t
-t2/credit_card.t
+t/load.t
+t/bad_auth.t
+t/credit_card.t
+t/echeck.t
+test.pem

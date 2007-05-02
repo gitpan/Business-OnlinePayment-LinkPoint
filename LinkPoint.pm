@@ -1,19 +1,12 @@
 package Business::OnlinePayment::LinkPoint;
 
-# $Id: LinkPoint.pm,v 1.23 2005/01/07 02:53:50 ivan Exp $
-
 use strict;
 use vars qw($VERSION @ISA $DEBUG @EXPORT @EXPORT_OK);
 use Carp qw(croak);
-use AutoLoader;
 use Business::OnlinePayment;
 
-require Exporter;
-
-@ISA = qw(Exporter AutoLoader Business::OnlinePayment);
-@EXPORT = qw();
-@EXPORT_OK = qw();
-$VERSION = '0.05';
+@ISA = qw(Business::OnlinePayment);
+$VERSION = '0.08';
 $DEBUG = 0;
 
 use lpperl; #3;  #lpperl.pm from LinkPoint
@@ -45,6 +38,15 @@ sub map_fields {
                    'void'                 => 'VOID',
                   );
     $content{'action'} = $actions{lc($content{'action'})} || $content{'action'};
+
+    #ACCOUNT TYPE MAP
+    my %account_types = ('personal checking' => 'pc',
+                         'personal savings'  => 'ps',
+                         'business checking' => 'bc',
+                         'business savings'  => 'bs',
+                        );
+    $content{'account_type'} = $account_types{lc($content{'account_type'})}
+                               || $content{'account_type'};
 
     # stuff it back into %content
     $self->content(%content);
@@ -103,6 +105,7 @@ sub submit {
     unless ( $content{action} eq 'POSTAUTH'
              || ( $content{'action'} =~ /^(CREDIT|VOID)$/
                   && exists $content{'order_number'} )
+             || $self->transaction_type() =~ /^e?check$/i
            ) {
 
         if (  $self->transaction_type() =~
@@ -120,7 +123,7 @@ sub submit {
       $month = '0'. $month if $month =~ /^\d$/;
     }
 
-    $content{'address'} =~ /^(\S+)\s/;
+    $content{'address'} =~ /^(\d+)\s/;
     my $addrnum = $1;
 
     my $result = $content{'result'};
@@ -131,33 +134,62 @@ sub submit {
       $result ||= 'LIVE';
     }
 
+    #docs disagree with lpperl.pm here
+    $content{'voidcheck'} = 1       
+      if ($self->transaction_type() =~ /^e?check$/i
+          &&  $content{'action'} =~ /^VOID$/);
+
     $self->revmap_fields(
       host         => \( $self->server ),
       port         => \( $self->port ),
       #storename    => \( $self->storename ),
       configfile   => \( $self->storename ),
       keyfile      => \( $self->keyfile ),
-      addrnum      => \$addrnum,
+
+      chargetotal  => 'amount',
       result       => \$result,
+      addrnum      => \$addrnum,
+      oid          => 'order_number',
+      ip           => 'customer_ip',
+      userid       => 'customer_id',
+      ponumber     => 'invoice_number',
+      comments     => 'description',
+      #reference_number => 'reference_number',
+
       cardnumber   => 'card_number',
       cardexpmonth => \$month,
       cardexpyear  => \$year,
-      chargetotal  => 'amount',
-      oid          => 'order_number',
+
+      bankname     => 'bank_name',
+      bankstate    => 'bank_state',
+      routing      => 'routing_code',
+      account      => 'account_number',
+      accounttype  => 'account_type',
+      name         => 'account_name',
+      dl           => 'state_id',
+      dlstate      => 'state_id_state',
     );
 
     my $lperl = new LPPERL;
 
-    $self->required_fields(qw/
-      host port configfile keyfile amount cardnumber cardexpmonth cardexpyear
-    /);
+    my @required_fields = qw(host port configfile keyfile amount);
+    if ($self->transaction_type() =~ /^(cc|visa|mastercard|american express|discover)$/i) {
+      push @required_fields, qw(cardnumber cardexpmonth cardexpyear);
+    }elsif ($self->transaction_type() =~ /^e?check$/i) {
+      push @required_fields, qw(
+        dl dlstate routing account accounttype bankname bankstate name
+                               );
+    }
+    $self->required_fields(@required_fields);
 
     my %post_data = $self->get_fields(qw/
       host port configfile keyfile
       result
       chargetotal cardnumber cardexpmonth cardexpyear
-      name email phone addrnum city state zip country
+      name company email phone fax addrnum city state zip country
       oid
+      dl dlstate routing account accounttype bankname bankstate name void
+
     /);
 
     $post_data{'ordertype'} = $content{action};
@@ -169,14 +201,20 @@ sub submit {
 
     if ( $DEBUG ) {
       warn "$_ => $post_data{$_}\n" foreach keys %post_data;
+      $post_data{debug} = 'true';
     }
 
-    my %response;
+    $post_data{'cargs'} = '-k -m 300 -s -S' if $self->test_transaction;
+
+    # avoid some uninitialized warnings in lpperl.pm
+    foreach (qw(webspace debug debugging)) { $post_data{$_} ||= '' }
+
+    #my %response;
     #{
     #  local($^W)=0;
     #  %response = $lperl->$action(\%post_data);
     #}
-    %response = $lperl->curl_process(\%post_data);
+    my %response = $lperl->curl_process(\%post_data);
 
     if ( $DEBUG ) {
       warn "$_ => $response{$_}\n" for keys %response;
@@ -191,7 +229,11 @@ sub submit {
     } else {
       $self->is_success(0);
       $self->result_code('');
-      $self->error_message($response{'r_error'});
+      if ( $response{'r_error'} =~ /\S/ ) {
+        $self->error_message($response{'r_error'});
+      } else {
+        $self->error_message($response{'r_approved'}); # no r_error for checks
+      }
     }
 
 }
@@ -246,8 +288,10 @@ For detailed information see L<Business::OnlinePayment>.
 
 =head1 COMPATIBILITY
 
-This module implements an interface to the LinkPoint Perl Wrapper
+This module implements an interface to the LinkPoint Perl Wrapper "lpperl",
+which you need to download and install separately.
 http://www.linkpoint.com/product_solutions/internet/lperl/lperl_main.html
+http://www.linkpoint.com/viewcart/down_index.htm
 
 Versions 0.4 and on of this module support the LinkPoint Perl Wrapper version
 3.5.
@@ -257,6 +301,10 @@ Versions 0.4 and on of this module support the LinkPoint Perl Wrapper version
 =head1 AUTHOR
 
 Ivan Kohler <ivan-linkpoint@420.am>
+
+Contributions from Mark D. Anderson <mda@discerning.com>
+
+Echeck work by Jeff Finucane <jeff@cmh.net>
 
 Based on Busienss::OnlinePayment::AuthorizeNet written by Jason Kohles.
 

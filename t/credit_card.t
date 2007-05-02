@@ -3,8 +3,9 @@ BEGIN { $| = 1; print "1..1\n"; }
 use Business::OnlinePayment;
 
 my $tx = new Business::OnlinePayment("LinkPoint",
-  'storename' => '1909100155',
+  'storename' => '1909796604',
   'keyfile'   => './test.pem',
+  'server'    => 'staging.linkpt.net',
 );
 
 $tx->content(
@@ -21,8 +22,7 @@ $tx->content(
     country        => 'US',
     email          => 'ivan-linkpoint@420.am',
     card_number    => '4007000000027',
-    expiration     => '12/2005',
-    result         => 'DECLINE',
+    expiration     => '12/2008',
 );
 
 $tx->test_transaction(1);
@@ -30,11 +30,11 @@ $tx->test_transaction(1);
 $tx->submit();
 
 if($tx->is_success()) {
-    print "not ok 1\n";
-    $auth = $tx->authorization;
-    warn "********* $auth ***********\n";
-} else {
     print "ok 1\n";
+    #$auth = $tx->authorization;
+    #warn "********* $auth ***********\n";
+} else {
+    print "not ok 1\n";
     warn '***** '. $tx->error_message. " *****\n";
     exit;
 }
