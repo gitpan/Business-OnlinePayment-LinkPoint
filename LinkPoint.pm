@@ -6,7 +6,8 @@ use Carp qw(croak);
 use Business::OnlinePayment;
 
 @ISA = qw(Business::OnlinePayment);
-$VERSION = '0.08';
+$VERSION = '0.09';
+#$VERSION = eval $VERSION; # modperlstyle: convert the string into a number
 $DEBUG = 0;
 
 use lpperl; #3;  #lpperl.pm from LinkPoint
@@ -134,10 +135,15 @@ sub submit {
       $result ||= 'LIVE';
     }
 
-    #docs disagree with lpperl.pm here
-    $content{'voidcheck'} = 1       
-      if ($self->transaction_type() =~ /^e?check$/i
-          &&  $content{'action'} =~ /^VOID$/);
+    #strip phone numbers of non-digits for ACH/echeck
+    #as per undocumented suggestion from LinkPoint
+    if ( $self->transaction_type =~ /^e?check$/i ) {
+      foreach my $field (qw( phone fax )) {
+        $content{$field} =~ s/\D//g;
+      }
+    }
+    # stuff it back into %content
+    $self->content(%content);
 
     $self->revmap_fields(
       host         => \( $self->server ),
@@ -194,6 +200,11 @@ sub submit {
 
     $post_data{'ordertype'} = $content{action};
 
+    #docs disagree with lpperl.pm here
+    $post_data{'voidcheck'} = 1       
+      if $self->transaction_type() =~ /^e?check$/i
+          && $post_data{'ordertype'} =~ /^VOID$/;
+
     if ( $content{'cvv2'} ) { 
       $post_data{cvmindicator} = 'provided';
       $post_data{cvmvalue} = $content{'cvv2'};
@@ -220,7 +231,12 @@ sub submit {
       warn "$_ => $response{$_}\n" for keys %response;
     }
 
-    if ( $response{'r_approved'} eq 'APPROVED' ) {
+    if ( $response{'r_approved'} eq 'APPROVED'
+         or ( $self->transaction_type() =~ /^e?check$/i
+              && $response{'r_approved'} eq 'SUBMITTED'
+            )
+       )
+    {
       $self->is_success(1);
       $self->result_code($response{'r_code'});
       $self->authorization($response{'r_ref'});

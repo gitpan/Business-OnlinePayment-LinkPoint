@@ -1,5 +1,10 @@
 Revision history for Perl extension Business::OnlinePayment::LinkPoint.
 
+0.09    Wed Jul 11 18:07:20 PDT 2007
+        - Trim all non-numeric characters from phone numbers when doing an ACH
+          transaction, as per undocumented suggestion from LinkPoint.
+        - ACH transactions: "SUBMITTED" indicates success
+
 0.08	Tue May  1 18:26:15 PDT 2007
         - Improve error message for declined checks.
         - Update for new test account.
