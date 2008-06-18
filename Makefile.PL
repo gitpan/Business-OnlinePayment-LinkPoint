@@ -5,6 +5,8 @@ WriteMakefile(
     'NAME'         => 'Business::OnlinePayment::LinkPoint',
     'VERSION_FROM' => 'LinkPoint.pm', # finds $VERSION
     'AUTHOR'       => 'Ivan Kohler <ivan-linkpoint@420.am>',
-    'PREREQ_PM'    => { 'Business::OnlinePayment' => 0, },
+    'PREREQ_PM'    => { 'Business::OnlinePayment' => 0,
+                        'lpperl' => 0,
+                      },
     #'NORECURS'     => 1, # dont descend into subdirectories
 );

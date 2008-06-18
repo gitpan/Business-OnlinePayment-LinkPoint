@@ -6,8 +6,8 @@ use Carp qw(croak);
 use Business::OnlinePayment;
 
 @ISA = qw(Business::OnlinePayment);
-$VERSION = '0.09';
-#$VERSION = eval $VERSION; # modperlstyle: convert the string into a number
+$VERSION = '0.10';
+$VERSION = eval $VERSION; # modperlstyle: convert the string into a number
 $DEBUG = 0;
 
 use lpperl; #3;  #lpperl.pm from LinkPoint

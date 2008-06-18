@@ -1,5 +1,8 @@
 Revision history for Perl extension Business::OnlinePayment::LinkPoint.
 
+0.10    Wed Jun 18 14:44:54 PDT 2008
+        - add PREREQ_PM on lpperl
+
 0.09    Wed Jul 11 18:07:20 PDT 2007
         - Trim all non-numeric characters from phone numbers when doing an ACH
           transaction, as per undocumented suggestion from LinkPoint.
